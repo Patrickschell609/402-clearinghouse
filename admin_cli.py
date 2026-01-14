@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 # Load environment
 load_dotenv()
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
-RPC_URL = "https://mainnet.base.org"
+RPC_URL = os.getenv("RPC_URL", "https://mainnet.base.org")
 
 if not PRIVATE_KEY:
     print("[CRITICAL] No PRIVATE_KEY found in .env")
