@@ -141,6 +141,7 @@ pub async fn buy_challenge(
     headers.insert("X-402-Expiry", expiry.to_string().parse().unwrap());
     headers.insert("X-402-Quote-ID", quote_id.parse().unwrap());
     headers.insert("X-402-Chain-ID", state.config.chain_id.to_string().parse().unwrap());
+    headers.insert("X-402-Asset-Address", asset_info.address.parse().unwrap());
     headers.insert(
         header::WWW_AUTHENTICATE,
         "Token x402-RWA".parse().unwrap(),

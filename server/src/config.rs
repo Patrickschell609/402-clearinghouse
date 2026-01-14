@@ -23,18 +23,18 @@ impl Config {
                 .context("Invalid PORT")?,
             
             chain_id: env::var("CHAIN_ID")
-                .unwrap_or_else(|_| "84532".to_string()) // Base Sepolia
+                .unwrap_or_else(|_| "8453".to_string()) // Base Mainnet
                 .parse()
                 .context("Invalid CHAIN_ID")?,
-            
+
             rpc_url: env::var("RPC_URL")
-                .unwrap_or_else(|_| "https://sepolia.base.org".to_string()),
-            
+                .unwrap_or_else(|_| "https://mainnet.base.org".to_string()),
+
             clearinghouse_address: env::var("CLEARINGHOUSE_ADDRESS")
-                .context("CLEARINGHOUSE_ADDRESS required")?,
-            
+                .unwrap_or_else(|_| "0xb315C8F827e3834bB931986F177cb1fb6D20415D".to_string()),
+
             usdc_address: env::var("USDC_ADDRESS")
-                .context("USDC_ADDRESS required")?,
+                .unwrap_or_else(|_| "0x6020Ed65e0008242D9094D107D97dd17599dc21C".to_string()),
             
             private_key: env::var("RELAY_PRIVATE_KEY").ok(),
             

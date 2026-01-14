@@ -34,11 +34,11 @@ impl BlockchainService {
             id: "TBILL-26".to_string(),
             name: "Treasury Bill Oct 2026".to_string(),
             symbol: "TBILL-26".to_string(),
-            address: "0x1234567890123456789012345678901234567890".to_string(),
-            issuer: "0xISSUER".to_string(),
+            address: "0x0cB59FaA219b80D8FbD28E9D37008f2db10F847A".to_string(),
+            issuer: "0xc7554F1B16ad0b3Ce363d53364C9817743E32f90".to_string(),
             price_per_unit: 980_000, // $0.98 in atomic USDC
             currency: "USDC".to_string(),
-            compliance_circuit: "0xABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890".to_string(),
+            compliance_circuit: "0xDd2ffa97F680032332EA4905586e2366584Ae0be".to_string(),
             active: true,
         }])
     }
