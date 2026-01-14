@@ -13,6 +13,7 @@ target/
 contracts/cache/
 contracts/out/
 contracts/broadcast/
+contracts/lib/
 
 # Node
 node_modules/
@@ -48,3 +49,15 @@ HANDOFF_NOTES.md
 
 # Claude
 .claude/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+x402_rwa/dist/
+x402_rwa/build/
+x402_rwa/src/*.egg-info/
+
+# Lock files (optional - some prefer to commit these)
+*.lock
