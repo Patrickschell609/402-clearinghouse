@@ -51,24 +51,26 @@ pub fn main() {
     // === PRIVATE INPUTS ===
     // Agent's secret (never revealed)
     let secret: String = io::read();
-    // Merkle proof: list of sibling hashes
-    let proof_siblings: Vec<String> = io::read();
-    // Direction bits: true = sibling is on left
-    let proof_directions: Vec<bool> = io::read();
+    // Merkle proof: list of sibling hashes (path)
+    let proof_path: Vec<String> = io::read();
+    // Index bits: true = we are the RIGHT node at this level
+    let index_bits: Vec<bool> = io::read();
 
     // === COMPUTE ===
     // Start with leaf hash of our secret
     let mut current_hash = hash_leaf(&secret);
 
     // Walk up the tree using the proof
-    for (sibling_hex, sibling_is_left) in proof_siblings.iter().zip(proof_directions.iter()) {
+    for (sibling_hex, is_right_node) in proof_path.iter().zip(index_bits.iter()) {
         let sibling = hex_to_bytes32(sibling_hex);
 
-        if *sibling_is_left {
-            // Sibling is on left, we're on right
+        if *is_right_node {
+            // We're on the right, sibling is on the left
+            // hash(sibling || us)
             current_hash = hash_pair(&sibling, &current_hash);
         } else {
-            // We're on left, sibling is on right
+            // We're on the left, sibling is on the right
+            // hash(us || sibling)
             current_hash = hash_pair(&current_hash, &sibling);
         }
     }

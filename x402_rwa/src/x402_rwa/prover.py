@@ -43,30 +43,41 @@ class MerkleTree:
     def get_root(self) -> str:
         return self.tree[-1][0]
 
-    def get_proof(self, secret: str) -> tuple:
-        """Get Merkle proof for a secret. Returns (siblings, directions)."""
+    def get_proof(self, secret: str) -> dict:
+        """
+        Get Merkle proof for a secret.
+
+        Returns:
+            dict with:
+                - root: The Merkle root
+                - path: List of sibling hashes
+                - bits: List of bools - True if we're the RIGHT node at each level
+        """
         import hashlib
         target_hash = hashlib.sha256(secret.encode()).hexdigest()
         try:
             index = self.leaves.index(target_hash)
         except ValueError:
-            return None, None
+            return None
 
-        siblings = []
-        directions = []
-        current_index = index
+        proof_path = []
+        index_bits = []
 
-        for level in self.tree[:-1]:
-            if current_index % 2 == 0:
-                if current_index + 1 < len(level):
-                    siblings.append(level[current_index + 1])
-                    directions.append(False)
-            else:
-                siblings.append(level[current_index - 1])
-                directions.append(True)
-            current_index //= 2
+        for level in self.tree[:-1]:  # Don't include root
+            is_right_node = (index % 2 == 1)
+            sibling_index = index - 1 if is_right_node else index + 1
 
-        return siblings, directions
+            if sibling_index < len(level):
+                proof_path.append(level[sibling_index])
+                index_bits.append(is_right_node)
+
+            index //= 2
+
+        return {
+            "root": self.get_root(),
+            "path": proof_path,
+            "bits": index_bits
+        }
 
 
 # Default agent registry
@@ -92,9 +103,10 @@ class MockProver:
         time.sleep(0.5)  # Simulate compute
 
         # Get Merkle proof if secret is in registry
+        merkle_data = None
         if secret_key:
-            siblings, directions = self.tree.get_proof(secret_key)
-            if siblings is None:
+            merkle_data = self.tree.get_proof(secret_key)
+            if merkle_data is None:
                 raise ValueError(f"Secret '{secret_key}' not in registry")
 
         # Public values: (address, validUntil, jurisdiction)
@@ -106,9 +118,13 @@ class MockProver:
             [wallet_address, valid_until, jurisdiction]
         )
 
-        # Mock proof includes Merkle data for debugging
+        # Mock proof - in production this would be real SP1 proof bytes
         proof = bytes.fromhex("1234567890abcdef")
         return proof, public_values
+
+    def get_merkle_data(self, secret_key: str) -> dict:
+        """Get Merkle proof data for SP1 input."""
+        return self.tree.get_proof(secret_key)
 
 
 class SP1Prover:
