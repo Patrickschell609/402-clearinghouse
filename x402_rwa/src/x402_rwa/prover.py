@@ -13,14 +13,89 @@ from pathlib import Path
 from eth_abi import encode
 
 
+class MerkleTree:
+    """Simple Merkle tree for agent registry."""
+
+    def __init__(self, secrets: list):
+        import hashlib
+        self.secrets = secrets
+        self.leaves = [hashlib.sha256(s.encode()).hexdigest() for s in secrets]
+        self.tree = [self.leaves]
+        self._build()
+
+    def _hash_pair(self, a: str, b: str) -> str:
+        import hashlib
+        combined = bytes.fromhex(a) + bytes.fromhex(b)
+        return hashlib.sha256(combined).hexdigest()
+
+    def _build(self):
+        current_level = self.leaves
+        while len(current_level) > 1:
+            next_level = []
+            for i in range(0, len(current_level), 2):
+                if i + 1 < len(current_level):
+                    next_level.append(self._hash_pair(current_level[i], current_level[i+1]))
+                else:
+                    next_level.append(current_level[i])
+            self.tree.append(next_level)
+            current_level = next_level
+
+    def get_root(self) -> str:
+        return self.tree[-1][0]
+
+    def get_proof(self, secret: str) -> tuple:
+        """Get Merkle proof for a secret. Returns (siblings, directions)."""
+        import hashlib
+        target_hash = hashlib.sha256(secret.encode()).hexdigest()
+        try:
+            index = self.leaves.index(target_hash)
+        except ValueError:
+            return None, None
+
+        siblings = []
+        directions = []
+        current_index = index
+
+        for level in self.tree[:-1]:
+            if current_index % 2 == 0:
+                if current_index + 1 < len(level):
+                    siblings.append(level[current_index + 1])
+                    directions.append(False)
+            else:
+                siblings.append(level[current_index - 1])
+                directions.append(True)
+            current_index //= 2
+
+        return siblings, directions
+
+
+# Default agent registry
+DEFAULT_REGISTRY = [
+    "hello",
+    "agent_007_secret",
+    "agent_008_secret",
+    "agent_009_secret",
+    "ghost_clearance_alpha",
+]
+
+
 class MockProver:
     """
     Mock prover for testing without SP1 installed.
-    Generates deterministic test proofs.
+    Generates deterministic test proofs with Merkle tree support.
     """
+    def __init__(self, registry: list = None):
+        self.tree = MerkleTree(registry or DEFAULT_REGISTRY)
+
     def generate_proof(self, wallet_address: str, secret_key: str = None) -> tuple:
         """Generate mock proof and public values."""
         time.sleep(0.5)  # Simulate compute
+
+        # Get Merkle proof if secret is in registry
+        if secret_key:
+            siblings, directions = self.tree.get_proof(secret_key)
+            if siblings is None:
+                raise ValueError(f"Secret '{secret_key}' not in registry")
 
         # Public values: (address, validUntil, jurisdiction)
         valid_until = int(time.time()) + 86400 * 30
@@ -31,6 +106,7 @@ class MockProver:
             [wallet_address, valid_until, jurisdiction]
         )
 
+        # Mock proof includes Merkle data for debugging
         proof = bytes.fromhex("1234567890abcdef")
         return proof, public_values
 
