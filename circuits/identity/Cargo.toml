@@ -1,0 +1,14 @@
+[package]
+name = "x402-identity-circuit"
+version = "0.1.0"
+edition = "2021"
+authors = ["Patrick Schell"]
+
+[dependencies]
+sp1-zkvm = "4.0.0"
+sha2 = "0.10"
+hex = "0.4"
+
+[[bin]]
+name = "x402-identity"
+path = "src/main.rs"

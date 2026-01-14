@@ -1,0 +1,15 @@
+[package]
+name = "x402-identity-script"
+version = "0.1.0"
+edition = "2021"
+authors = ["Patrick Schell"]
+
+[dependencies]
+sp1-sdk = "4.0.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex = "0.4"
+clap = { version = "4.0", features = ["derive"] }
+
+[build-dependencies]
+sp1-build = "4.0.0"

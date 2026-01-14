@@ -6,6 +6,10 @@ Usage:
 
     agent = X402Agent(rpc_url, private_key)
     tx_hash = agent.acquire_asset("http://clearinghouse.example/api/v1/trade", "TBILL-26", 100)
+
+With real ZK identity:
+    agent = X402Agent(rpc_url, private_key, identity_secret="your_secret_key")
+    tx_hash = agent.acquire_asset(...)
 """
 
 import os
@@ -13,39 +17,8 @@ import time
 import requests
 from web3 import Web3
 from eth_account import Account
-from eth_abi import encode
 
-
-class X402Prover:
-    """
-    Handles ZK Proof generation.
-    In production, wraps SP1 binary or remote prover network.
-    """
-    def generate_proof(self, circuit_id: str, wallet_address: str) -> tuple:
-        """
-        Generate ZK compliance proof for the given circuit.
-
-        Returns:
-            tuple: (proof_bytes, public_values_bytes)
-        """
-        # REAL IMPLEMENTATION:
-        # return sp1.prove(circuit_id, identity_inputs)
-
-        # MOCK IMPLEMENTATION - replace with real SP1 prover
-        time.sleep(0.5)  # Simulate compute time
-
-        # Public values: (address, validUntil, jurisdiction)
-        valid_until = int(time.time()) + 86400 * 30  # 30 days
-        jurisdiction = bytes.fromhex("5553" + "00" * 30)  # "US" padded to bytes32
-
-        public_values = encode(
-            ['address', 'uint256', 'bytes32'],
-            [wallet_address, valid_until, jurisdiction]
-        )
-
-        proof = bytes.fromhex("1234567890abcdef")
-
-        return proof, public_values
+from .prover import X402Prover
 
 
 class X402Wallet:
@@ -135,9 +108,18 @@ class X402Agent:
     """
     High-level agent interface for acquiring tokenized RWAs.
 
-    Example:
+    Example (mock mode - testing):
         agent = X402Agent("https://mainnet.base.org", os.getenv("PRIVATE_KEY"))
         tx = agent.acquire_asset("http://clearinghouse.io/api/v1/trade", "TBILL-26", 100)
+
+    Example (real ZK - production):
+        agent = X402Agent(
+            "https://mainnet.base.org",
+            os.getenv("PRIVATE_KEY"),
+            identity_secret="your_kyc_secret",
+            prover_mode="sp1"
+        )
+        tx = agent.acquire_asset(...)
     """
 
     # Default asset addresses (Base Mainnet)
@@ -145,16 +127,25 @@ class X402Agent:
         "TBILL-26": "0x0cB59FaA219b80D8FbD28E9D37008f2db10F847A"
     }
 
-    def __init__(self, rpc_url: str, private_key: str):
+    def __init__(
+        self,
+        rpc_url: str,
+        private_key: str,
+        identity_secret: str = "hello",
+        prover_mode: str = "auto"
+    ):
         """
         Initialize the x402 agent.
 
         Args:
             rpc_url: RPC endpoint URL (e.g., https://mainnet.base.org)
             private_key: Wallet private key (hex string with 0x prefix)
+            identity_secret: Secret for ZK identity proof (default: "hello" for testing)
+            prover_mode: "auto", "mock", or "sp1"
         """
-        self.prover = X402Prover()
+        self.prover = X402Prover(mode=prover_mode)
         self.wallet = X402Wallet(rpc_url, private_key)
+        self.identity_secret = identity_secret
 
     def acquire_asset(
         self,
@@ -211,8 +202,8 @@ class X402Agent:
 
         # 3. GENERATE ZK PROOF
         proof, public_values = self.prover.generate_proof(
-            circuit_id,
-            self.wallet.address
+            self.wallet.address,
+            self.identity_secret
         )
 
         if verbose:
