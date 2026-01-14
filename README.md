@@ -75,11 +75,11 @@ Live on Base Mainnet (Chain ID: 8453):
 
 | Contract | Address | Verified |
 |----------|---------|----------|
-| **Clearinghouse402** | [`0x79feeE5c8e4d72c6949f3020C5f125D58F1E2B36`](https://basescan.org/address/0x79feeE5c8e4d72c6949f3020C5f125D58F1E2B36) | Yes |
-| **MockUSDC** | [`0x5E498B6B44Df8960A18c6d65827E20e85eb5615a`](https://basescan.org/address/0x5E498B6B44Df8960A18c6d65827E20e85eb5615a) | Yes |
-| **MockTBill** | [`0x642559AF71331C286C5282fEFF169A187E9Dea30`](https://basescan.org/address/0x642559AF71331C286C5282fEFF169A187E9Dea30) | Yes |
+| **Clearinghouse402** | [`0xb315C8F827e3834bB931986F177cb1fb6D20415D`](https://basescan.org/address/0xb315C8F827e3834bB931986F177cb1fb6D20415D) | Yes |
+| **MockUSDC** | [`0x6020Ed65e0008242D9094D107D97dd17599dc21C`](https://basescan.org/address/0x6020Ed65e0008242D9094D107D97dd17599dc21C) | Yes |
+| **MockTBill** | [`0x0cB59FaA219b80D8FbD28E9D37008f2db10F847A`](https://basescan.org/address/0x0cB59FaA219b80D8FbD28E9D37008f2db10F847A) | Yes |
 
-Example settlement tx: [`0x9f4a49f45de208588284fa6b4614f56c7ca95e5cd9a413d7b307b464a45e86be`](https://basescan.org/tx/0x9f4a49f45de208588284fa6b4614f56c7ca95e5cd9a413d7b307b464a45e86be)
+Example settlement tx: [`0x2a7a249f9cf8459972872ef0779a6af6a168e77cb2b02dcf68d66ecb6a1fdc43`](https://basescan.org/tx/0x2a7a249f9cf8459972872ef0779a6af6a168e77cb2b02dcf68d66ecb6a1fdc43)
 
 ## Quick Start
 
