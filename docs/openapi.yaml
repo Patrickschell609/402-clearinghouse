@@ -1,0 +1,466 @@
+openapi: 3.1.0
+info:
+  title: 402 Clearinghouse API
+  description: |
+    # x402-RWA Protocol
+    
+    An agent-native RWA settlement layer using HTTP 402 Payment Required.
+    
+    ## Overview
+    
+    This API enables autonomous AI agents to discover, negotiate, and settle
+    tokenized Real World Asset (RWA) transactions without human intervention.
+    
+    ## The x402 Flow
+    
+    1. **Discovery**: Agent queries available assets
+    2. **Challenge**: Agent requests to buy → receives 402 with terms
+    3. **Compliance**: Agent generates ZK proof of investor accreditation
+    4. **Settlement**: Agent submits proof + payment → atomic swap executes
+    
+    ## Authentication
+    
+    No API keys required. Compliance is verified cryptographically via ZK proofs.
+    
+    ## Chain Support
+    
+    - Base Sepolia (testnet): Chain ID 84532
+    - Base Mainnet (production): Chain ID 8453
+    
+  version: 1.0.0
+  contact:
+    name: Ghost Protocol
+    url: https://github.com/ghost/clearinghouse-402
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.clearinghouse.example.com
+    description: Production
+
+tags:
+  - name: health
+    description: Service health and status
+  - name: assets
+    description: Asset discovery and information
+  - name: trade
+    description: x402 trading operations
+  - name: agents
+    description: Agent verification status
+  - name: compliance
+    description: ZK compliance circuits
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      description: Returns service health and chain connection status
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/assets:
+    get:
+      tags: [assets]
+      summary: List available assets
+      description: Returns all RWA assets available for trading
+      operationId: listAssets
+      responses:
+        '200':
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asset'
+
+  /api/v1/assets/{asset}:
+    get:
+      tags: [assets]
+      summary: Get asset details
+      operationId: getAsset
+      parameters:
+        - name: asset
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Asset ID or contract address
+      responses:
+        '200':
+          description: Asset details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '404':
+          description: Asset not found
+
+  /api/v1/trade/quote/{asset}:
+    get:
+      tags: [trade]
+      summary: Get price quote
+      description: Returns a non-binding price quote for an asset
+      operationId: getQuote
+      parameters:
+        - name: asset
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Asset ID
+        - name: amount
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Number of units to purchase
+      responses:
+        '200':
+          description: Price quote
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '404':
+          description: Asset not found
+
+  /api/v1/trade/buy/{asset}:
+    get:
+      tags: [trade]
+      summary: Request purchase (402 Challenge)
+      description: |
+        Initiates the x402 purchase flow.
+        
+        Returns HTTP 402 Payment Required with custom headers containing:
+        - Asset terms
+        - Required compliance circuit
+        - Payment instructions
+        
+        The agent must respond with a POST containing the ZK proof and payment.
+      operationId: buyChallenge
+      parameters:
+        - name: asset
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: amount
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '402':
+          description: Payment Required - x402 Challenge
+          headers:
+            X-402-Asset-ID:
+              schema:
+                type: string
+              description: Asset identifier
+            X-402-Price:
+              schema:
+                type: integer
+              description: Total price in atomic USDC (6 decimals)
+            X-402-Currency:
+              schema:
+                type: string
+              description: Settlement currency (e.g., USDC-BASE)
+            X-402-Compliance-Circuit:
+              schema:
+                type: string
+              description: Required ZK circuit ID
+            X-402-Payment-Address:
+              schema:
+                type: string
+              description: Clearinghouse contract address
+            X-402-Expiry:
+              schema:
+                type: integer
+              description: Unix timestamp when quote expires
+            X-402-Quote-ID:
+              schema:
+                type: string
+              description: Unique quote identifier
+            X-402-Chain-ID:
+              schema:
+                type: integer
+              description: Target blockchain chain ID
+            WWW-Authenticate:
+              schema:
+                type: string
+                enum: ["Token x402-RWA"]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/X402Challenge'
+        '404':
+          description: Asset not found
+    
+    post:
+      tags: [trade]
+      summary: Execute settlement
+      description: |
+        Executes the atomic settlement after receiving 402 challenge.
+        
+        The agent must provide:
+        1. SP1 ZK compliance proof
+        2. Public values from the proof
+        3. Quote ID from the 402 response
+        
+        The clearinghouse verifies the proof and executes the atomic swap:
+        - USDC transferred from agent to issuer
+        - RWA tokens transferred to agent
+        - All in one transaction
+      operationId: executeBuy
+      parameters:
+        - name: asset
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettlementRequest'
+      responses:
+        '200':
+          description: Settlement successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementResponse'
+        '400':
+          description: Invalid proof or request
+        '402':
+          description: Insufficient balance
+        '410':
+          description: Quote expired
+
+  /api/v1/agent/{address}/status:
+    get:
+      tags: [agents]
+      summary: Get agent verification status
+      operationId: getAgentStatus
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent's Ethereum address
+      responses:
+        '200':
+          description: Agent status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentStatus'
+
+  /api/v1/compliance/circuit/{asset}:
+    get:
+      tags: [compliance]
+      summary: Get compliance circuit details
+      description: Returns the ZK circuit requirements for an asset
+      operationId: getComplianceCircuit
+      parameters:
+        - name: asset
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Circuit details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceCircuit'
+        '404':
+          description: Asset not found
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, chain_id, block_number, clearinghouse, version]
+      properties:
+        status:
+          type: string
+          example: healthy
+        chain_id:
+          type: integer
+          example: 84532
+        block_number:
+          type: integer
+          example: 12345678
+        clearinghouse:
+          type: string
+          example: "0x1234..."
+        version:
+          type: string
+          example: "1.0.0"
+
+    Asset:
+      type: object
+      required: [id, name, symbol, address, price_per_unit, currency, active]
+      properties:
+        id:
+          type: string
+          example: TBILL-26
+        name:
+          type: string
+          example: Treasury Bill Oct 2026
+        symbol:
+          type: string
+          example: TBILL-26
+        address:
+          type: string
+          example: "0x1234..."
+        issuer:
+          type: string
+          example: "0xABCD..."
+        price_per_unit:
+          type: integer
+          description: Price in atomic USDC (6 decimals)
+          example: 980000
+        currency:
+          type: string
+          example: USDC
+        compliance_circuit:
+          type: string
+        active:
+          type: boolean
+
+    Quote:
+      type: object
+      required: [asset_id, amount, price_per_unit, total_price, fee, expiry, quote_id]
+      properties:
+        asset_id:
+          type: string
+        amount:
+          type: integer
+        price_per_unit:
+          type: integer
+        total_price:
+          type: integer
+        fee:
+          type: integer
+        expiry:
+          type: integer
+        quote_id:
+          type: string
+
+    X402Challenge:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Payment Required
+        message:
+          type: string
+        protocol:
+          type: string
+          example: x402-RWA/1.0
+        asset:
+          type: string
+        amount:
+          type: integer
+        total_price:
+          type: integer
+        currency:
+          type: string
+        expiry:
+          type: integer
+        quote_id:
+          type: string
+        compliance_circuit:
+          type: string
+        payment_address:
+          type: string
+
+    SettlementRequest:
+      type: object
+      required: [asset, amount, quote_id, compliance_proof, public_values]
+      properties:
+        asset:
+          type: string
+          description: Asset ID
+        amount:
+          type: integer
+          description: Number of units to purchase
+        quote_id:
+          type: string
+          description: Quote ID from 402 response
+        compliance_proof:
+          type: string
+          description: Hex-encoded SP1 ZK proof
+        public_values:
+          type: string
+          description: Hex-encoded public values from proof
+
+    SettlementResponse:
+      type: object
+      required: [status, asset_delivered, amount, settlement_id, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [settled, pending, failed]
+        tx_hash:
+          type: string
+          nullable: true
+        asset_delivered:
+          type: string
+        amount:
+          type: integer
+        settlement_id:
+          type: string
+        timestamp:
+          type: integer
+
+    AgentStatus:
+      type: object
+      properties:
+        address:
+          type: string
+        verified:
+          type: boolean
+        verified_until:
+          type: integer
+          nullable: true
+        total_settlements:
+          type: integer
+        total_volume_usdc:
+          type: integer
+
+    ComplianceCircuit:
+      type: object
+      properties:
+        circuit_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        ipfs_hash:
+          type: string
+        verifier_address:
+          type: string
+        required_claims:
+          type: array
+          items:
+            type: string

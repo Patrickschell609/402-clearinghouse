@@ -1,0 +1,50 @@
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Rust
+target/
+**/*.rs.bk
+
+# Foundry
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# Build artifacts
+dist/
+build/
+
+# Local files
+HANDOFF_NOTES.md
+402_Clearinghouse_Complete.zip
+402_clearinghouse_launch_package.js
+*.ogv
+*.mp4
+
+# Claude
+.claude/
