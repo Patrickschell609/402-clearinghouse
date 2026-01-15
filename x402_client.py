@@ -194,6 +194,154 @@ class X402Agent:
     # Alias for backward compatibility
     buy_asset = acquire_asset
 
+    def negotiate_and_acquire(
+        self,
+        server_url: str,
+        asset_id: str,
+        amount: int,
+        max_budget: float,
+        aggression: float = 0.10
+    ):
+        """
+        DARK POOL MODE: Negotiate price before buying.
+
+        Instead of accepting the first price, the agent haggles
+        to find the best deal based on market conditions.
+
+        Args:
+            server_url: The 402 server endpoint
+            asset_id: Asset to acquire
+            amount: Number of units
+            max_budget: Maximum price willing to pay (in USDC)
+            aggression: How much to lowball (0.1 = start 10% below budget)
+        """
+        print(f"\n{'='*60}")
+        print(f"  x402 DARK POOL: NEGOTIATING {amount} units of {asset_id}")
+        print(f"  Max Budget: ${max_budget:.2f}")
+        print(f"{'='*60}")
+
+        # 1. GET INITIAL QUOTE
+        url = f"{server_url}/quote/{asset_id}"
+        print(f"\n[1] PROBE: GET {url}")
+
+        try:
+            response = requests.get(url, params={"amount": amount})
+        except Exception as e:
+            print(f"[X] Network Error: {e}")
+            return None
+
+        if response.status_code == 402:
+            initial_ask = float(response.headers.get("x-402-price", 0)) / 10**6
+            print(f"    Market Ask: ${initial_ask:.2f}")
+        else:
+            print(f"[?] Expected 402, got {response.status_code}")
+            return None
+
+        # 2. CHECK IF PRICE IS ALREADY GOOD
+        if initial_ask <= max_budget:
+            print(f"    Price is within budget. Buying directly.")
+            return self.acquire_asset(server_url, asset_id, amount)
+
+        # 3. THE HAGGLE - Start aggressive
+        my_bid = max_budget * (1 - aggression)
+        print(f"\n[2] NEGOTIATE: Opening bid ${my_bid:.2f}")
+
+        negotiate_url = f"{server_url}/negotiate"
+        payload = {
+            "asset_id": asset_id,
+            "bid": my_bid,
+            "volume": amount,
+            "agent_address": self.wallet.account.address
+        }
+
+        response = requests.post(negotiate_url, json=payload)
+
+        if response.status_code != 402:
+            print(f"[?] Negotiation failed: {response.status_code}")
+            return None
+
+        # 4. PARSE COUNTER-OFFER
+        counter_price = float(response.headers.get("X-402-Price", initial_ask))
+        status = response.headers.get("X-402-Status", "UNKNOWN")
+        message = response.headers.get("X-402-Message", "")
+
+        print(f"    Server Response: {status}")
+        print(f"    Counter Price: ${counter_price:.2f}")
+        if message:
+            print(f"    Message: {message}")
+
+        # 5. DECISION: Accept, Counter, or Walk
+        if status == "ACCEPTED":
+            print(f"\n[3] DEAL ACCEPTED @ ${counter_price:.2f}")
+            return self._execute_negotiated_buy(server_url, asset_id, amount, counter_price)
+
+        elif status == "COUNTERED":
+            if counter_price <= max_budget:
+                print(f"\n[3] ACCEPTING COUNTER @ ${counter_price:.2f}")
+                return self._execute_negotiated_buy(server_url, asset_id, amount, counter_price)
+            else:
+                # Try one more time - meet in the middle
+                final_bid = (my_bid + counter_price) / 2
+                if final_bid <= max_budget:
+                    print(f"\n[3] FINAL BID: ${final_bid:.2f}")
+                    payload["bid"] = final_bid
+                    response = requests.post(negotiate_url, json=payload)
+                    final_price = float(response.headers.get("X-402-Price", counter_price))
+
+                    if final_price <= max_budget:
+                        print(f"    DEAL @ ${final_price:.2f}")
+                        return self._execute_negotiated_buy(server_url, asset_id, amount, final_price)
+
+                print(f"\n[X] WALK AWAY: Price ${counter_price:.2f} > Budget ${max_budget:.2f}")
+                return None
+
+        else:  # REJECTED
+            print(f"\n[X] REJECTED: {message}")
+            print(f"    Market is firm. Consider increasing budget.")
+            return None
+
+    def _execute_negotiated_buy(self, server_url: str, asset_id: str, amount: int, price: float):
+        """Execute settlement at negotiated price"""
+        print(f"\n[4] EXECUTING SETTLEMENT @ ${price:.2f}")
+
+        # Generate proof
+        circuit_id = "ipfs://negotiated"  # Would come from server
+        proof, public_values = self.prover.generate_proof(
+            circuit_id,
+            self.wallet.account.address
+        )
+
+        # Get clearinghouse address from server
+        response = requests.get(f"{server_url}/quote/{asset_id}")
+        clearinghouse = response.headers.get("x-402-payment-address", "")
+        asset_addr = response.headers.get("x-402-asset-address", TBILL_ADDRESS)
+
+        price_wei = int(price * 10**6)  # Convert to USDC decimals
+
+        try:
+            tx_hash = self.wallet.settle_trade(
+                clearinghouse,
+                asset_addr,
+                amount,
+                proof,
+                public_values,
+                price_wei
+            )
+
+            print(f"\n{'='*60}")
+            print(f"  [$] DARK POOL SUCCESS")
+            print(f"  Negotiated Price: ${price:.2f}")
+            print(f"  TX: {tx_hash}")
+            print(f"{'='*60}")
+            return tx_hash
+
+        except Exception as e:
+            print(f"\n[X] SETTLEMENT FAILED: {e}")
+            return None
+
+    # Alias
+    haggle = negotiate_and_acquire
+
 # --- USAGE EXAMPLE ---
 if __name__ == "__main__":
     SERVER_URL = "http://localhost:8080/api/v1/trade"

@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 /// @title ISP1Verifier
 /// @notice Interface for Succinct SP1 proof verification
@@ -27,7 +28,7 @@ interface IRWA is IERC20 {
 /// @author Ghost Protocol
 /// @notice Agent-native RWA settlement layer using x402 protocol
 /// @dev Non-custodial router - never holds assets beyond atomic transaction
-contract Clearinghouse402 is ReentrancyGuard, Ownable {
+contract Clearinghouse402 is ReentrancyGuard, Ownable, Pausable {
     using SafeERC20 for IERC20;
 
     // ============ Errors ============
@@ -120,7 +121,7 @@ contract Clearinghouse402 is ReentrancyGuard, Ownable {
         uint256 quoteExpiry,
         bytes calldata complianceProof,
         bytes calldata publicValues
-    ) external nonReentrant returns (bytes32 txId) {
+    ) external nonReentrant whenNotPaused returns (bytes32 txId) {
         // 1. Validate asset
         AssetConfig storage config = assets[asset];
         if (!config.active) revert InvalidAsset();
@@ -179,7 +180,7 @@ contract Clearinghouse402 is ReentrancyGuard, Ownable {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external nonReentrant returns (bytes32 txId) {
+    ) external nonReentrant whenNotPaused returns (bytes32 txId) {
         // Execute permit
         // Note: Would use IERC20Permit in production
         // IERC20Permit(address(usdc)).permit(msg.sender, address(this), type(uint256).max, deadline, v, r, s);
@@ -267,6 +268,16 @@ contract Clearinghouse402 is ReentrancyGuard, Ownable {
         if (newTreasury == address(0)) revert ZeroAddress();
         emit TreasuryUpdated(treasury, newTreasury);
         treasury = newTreasury;
+    }
+
+    /// @notice Emergency pause - stops all settlements
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Resume operations
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     // ============ Internal Functions ============
