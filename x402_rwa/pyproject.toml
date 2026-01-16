@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "x402-rwa"
-version = "0.2.0"
+version = "0.3.0"
 description = "Agent-Native RWA Settlement SDK - Acquire tokenized assets in one function call"
 readme = "README.md"
 license = {text = "MIT"}

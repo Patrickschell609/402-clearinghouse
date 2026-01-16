@@ -16,6 +16,7 @@ contract AgentRegistry is Ownable {
     event RootUpdated(bytes32 oldRoot, bytes32 newRoot);
     event ProtocolWhitelisted(address indexed protocol);
     event ProtocolRemoved(address indexed protocol);
+    event SandwichAgentRegistered(address indexed mpcAddress, bytes32 teePubKey, string version);
 
     // ============ Structs ============
     struct AgentPassport {
@@ -41,6 +42,17 @@ contract AgentRegistry is Ownable {
     // Stats
     uint256 public totalAgents;
     uint256 public totalVolume;
+
+    // ============ Sandwich Model (TEE + MPC Self-Custody) ============
+
+    /// @notice TEE public key for each MPC wallet (for signature verification)
+    mapping(address => bytes32) public agentTeePublicKey;
+
+    /// @notice Whitelist of registered MPC wallet addresses
+    mapping(address => bool) public isMpcWallet;
+
+    /// @notice Nonces to prevent replay attacks on TEE-signed payloads
+    mapping(bytes32 => bool) public usedNonces;
 
     // ============ Constants ============
     uint256 public constant INITIAL_REPUTATION = 100;
@@ -179,6 +191,69 @@ contract AgentRegistry is Ownable {
     function reactivateAgent(address agent) external onlyOwner {
         require(passports[agent].identityHash != bytes32(0), "Never registered");
         passports[agent].active = true;
+    }
+
+    // ============ Sandwich Model Registration ============
+
+    /// @notice Register a Sandwich Model agent (TEE + MPC self-custody)
+    /// @param mpcAddress The MPC-derived wallet address on Base
+    /// @param teePubKey The TEE enclave's public key (for ECDSA verification)
+    /// @dev This creates a fully self-custodial agent: no server holds keys
+    function registerSandwichAgent(address mpcAddress, bytes32 teePubKey) external onlyOwner {
+        require(mpcAddress != address(0), "Invalid MPC address");
+        require(teePubKey != bytes32(0), "Invalid TEE key");
+        require(!isMpcWallet[mpcAddress], "Already registered");
+
+        isMpcWallet[mpcAddress] = true;
+        agentTeePublicKey[mpcAddress] = teePubKey;
+
+        // Also create a passport for the MPC wallet
+        passports[mpcAddress] = AgentPassport({
+            identityHash: keccak256(abi.encodePacked(mpcAddress, teePubKey)),
+            reputation: INITIAL_REPUTATION,
+            registeredAt: block.timestamp,
+            totalSettlements: 0,
+            totalVolume: 0,
+            active: true
+        });
+
+        totalAgents++;
+
+        emit SandwichAgentRegistered(mpcAddress, teePubKey, "SANDWICH_MODEL_V1");
+        emit AgentRegistered(mpcAddress, passports[mpcAddress].identityHash, block.timestamp);
+    }
+
+    /// @notice Update TEE key for an existing Sandwich agent (key rotation)
+    /// @param mpcAddress The MPC wallet address
+    /// @param newTeePubKey The new TEE public key
+    function updateTeeKey(address mpcAddress, bytes32 newTeePubKey) external onlyOwner {
+        require(isMpcWallet[mpcAddress], "Not a Sandwich agent");
+        require(newTeePubKey != bytes32(0), "Invalid TEE key");
+
+        agentTeePublicKey[mpcAddress] = newTeePubKey;
+    }
+
+    /// @notice Deregister a Sandwich agent
+    /// @param mpcAddress The MPC wallet to deregister
+    function deregisterSandwichAgent(address mpcAddress) external onlyOwner {
+        require(isMpcWallet[mpcAddress], "Not a Sandwich agent");
+
+        isMpcWallet[mpcAddress] = false;
+        agentTeePublicKey[mpcAddress] = bytes32(0);
+        passports[mpcAddress].active = false;
+    }
+
+    /// @notice Mark a nonce as used (called by AIGuardian after successful verification)
+    /// @param nonce The nonce to mark as used
+    function markNonceUsed(bytes32 nonce) external {
+        require(authorizedProtocols[msg.sender], "Not authorized protocol");
+        usedNonces[nonce] = true;
+    }
+
+    /// @notice Check if a nonce has been used
+    /// @param nonce The nonce to check
+    function isNonceUsed(bytes32 nonce) external view returns (bool) {
+        return usedNonces[nonce];
     }
 
     // ============ Internal ============

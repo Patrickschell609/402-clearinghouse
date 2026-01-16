@@ -9,3 +9,7 @@ bincode = { version = "2.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 fixed = { version = "1.23", features = ["serde"] }
 hex = "0.4"
+
+[[bin]]
+name = "transformer-prover"
+path = "src/bin/transformer_prover.rs"

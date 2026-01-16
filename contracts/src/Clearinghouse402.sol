@@ -122,10 +122,13 @@ contract Clearinghouse402 is ReentrancyGuard, Ownable, Pausable {
         bytes calldata complianceProof,
         bytes calldata publicValues
     ) external nonReentrant whenNotPaused returns (bytes32 txId) {
+        // 0. Validate amount
+        if (amount == 0) revert InsufficientBalance();
+
         // 1. Validate asset
         AssetConfig storage config = assets[asset];
         if (!config.active) revert InvalidAsset();
-        
+
         // 2. Check quote expiry
         if (block.timestamp > quoteExpiry) revert QuoteExpired();
         

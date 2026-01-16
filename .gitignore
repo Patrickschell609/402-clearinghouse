@@ -42,6 +42,8 @@ build/
 
 # Local files
 HANDOFF_NOTES.md
+SESSION_NOTES*.md
+*_MASTER_KEYS*
 402_Clearinghouse_Complete.zip
 402_clearinghouse_launch_package.js
 *.ogv
